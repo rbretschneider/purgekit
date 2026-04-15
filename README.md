@@ -8,6 +8,10 @@ A Windows desktop application for reclaiming disk space. PurgeKit scans for temp
 
 Built with WPF (.NET 8), using the ModernWpf dark theme and the CommunityToolkit.Mvvm MVVM framework.
 
+![Scan Results](assets/scan_progress.png)
+
+![Installed Programs](assets/programs.png)
+
 ## Download
 
 [**Download latest release**](https://github.com/rbretschneider/purgekit/releases/latest) — grab `PurgeKit.UI.exe` from the Assets section. No install required, just run the exe.
