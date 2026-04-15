@@ -1,0 +1,39 @@
+<Application x:Class="PurgeKit.UI.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:conv="clr-namespace:PurgeKit.UI.Converters"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemeResources RequestedTheme="Dark" />
+                <ui:XamlControlsResources />
+                <ResourceDictionary Source="Styles/NavStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Safety badge colors -->
+            <SolidColorBrush x:Key="SafetyGreenBrush" Color="#4CAF50" />
+            <SolidColorBrush x:Key="SafetyCautionBrush" Color="#FF9800" />
+            <SolidColorBrush x:Key="SafetyDangerBrush" Color="#F44336" />
+            <SolidColorBrush x:Key="SafetyUnknownBrush" Color="#9E9E9E" />
+            <SolidColorBrush x:Key="AccentBlueBrush" Color="#0078D4" />
+
+            <conv:CountToVisibilityConverter x:Key="CountToVis" />
+
+            <!-- Consistent Delete button style: red-ish outline -->
+            <Style x:Key="DeleteButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Foreground" Value="#F44336" />
+                <Setter Property="BorderBrush" Value="#66F44336" />
+                <Setter Property="Padding" Value="14,6" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+
+            <!-- Consistent secondary action button -->
+            <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Padding" Value="12,6" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,114 @@
+<Window x:Class="PurgeKit.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        xmlns:views="clr-namespace:PurgeKit.UI.Views"
+        xmlns:conv="clr-namespace:PurgeKit.UI.Converters"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        Title="PurgeKit" Height="700" Width="1200" MinHeight="600" MinWidth="1024"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <conv:StringMatchToVisibilityConverter x:Key="StringMatchToVis" />
+        <conv:StringMatchToBoolConverter x:Key="StringMatchToBool" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Navigation Rail -->
+        <Border Grid.Column="0" Grid.RowSpan="2"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,1,0">
+            <DockPanel>
+                <!-- App Title -->
+                <StackPanel DockPanel.Dock="Top" Margin="16,20,16,20">
+                    <TextBlock Text="PurgeKit" FontSize="22" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+                    <TextBlock Text="Disk Space Cleanup" FontSize="12" Opacity="0.6"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <!-- Scan All / Stop button -->
+                <StackPanel DockPanel.Dock="Top" Margin="8,0,8,12">
+                    <Button Content="Scan All" Command="{Binding ScanAllCommand}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            HorizontalAlignment="Stretch" Padding="0,10" FontSize="14" FontWeight="SemiBold"
+                            Visibility="{Binding IsAnyScanRunning, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                    <Button Content="Stop Scan" Command="{Binding StopAllScansCommand}"
+                            HorizontalAlignment="Stretch" Padding="0,10" FontSize="14" FontWeight="SemiBold"
+                            Foreground="#F44336" BorderBrush="#66F44336"
+                            Visibility="{Binding IsAnyScanRunning, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+
+                <!-- Nav Items -->
+                <StackPanel DockPanel.Dock="Top">
+                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                                 Tag="&#xE721;" Content="Scan"
+                                 IsChecked="{Binding CurrentSection, Converter={StaticResource StringMatchToBool}, ConverterParameter=Scan}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Scan" />
+                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                                 Tag="&#xE74C;" Content="Programs"
+                                 IsChecked="{Binding CurrentSection, Converter={StaticResource StringMatchToBool}, ConverterParameter=Programs}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Programs" />
+                </StackPanel>
+
+                <!-- Settings + version at bottom -->
+                <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Margin="0,0,0,8">
+                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                                 Tag="&#xE713;" Content="Settings"
+                                 IsChecked="{Binding CurrentSection, Converter={StaticResource StringMatchToBool}, ConverterParameter=Settings}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Settings" />
+                    <TextBlock Text="{Binding VersionText}" Opacity="0.35" FontSize="11"
+                               Margin="16,4,0,0"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+                    <!-- Update status -->
+                    <TextBlock Text="{Binding UpdateStatusText}" FontSize="11" Margin="16,2,0,0"
+                               Foreground="{StaticResource AccentBlueBrush}"
+                               Visibility="{Binding IsUpdating, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+
+                <Border /> <!-- Spacer -->
+            </DockPanel>
+        </Border>
+
+        <!-- Content Area -->
+        <Grid Grid.Column="1" Grid.Row="0">
+            <views:ScanView DataContext="{Binding ScanVm}"
+                            Visibility="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringMatchToVis}, ConverterParameter=Scan}" />
+            <views:ProgramsView DataContext="{Binding ProgramsVm}"
+                                Visibility="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringMatchToVis}, ConverterParameter=Programs}" />
+            <views:SettingsView DataContext="{Binding SettingsVm}"
+                                Visibility="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringMatchToVis}, ConverterParameter=Settings}" />
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Column="1" Grid.Row="1"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding DriveUsageText}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+                <ProgressBar Grid.Column="1" Width="200" Height="8"
+                             Value="{Binding DriveUsagePercent}" Maximum="100"
+                             Margin="16,0,0,0" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

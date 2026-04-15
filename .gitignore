@@ -1,0 +1,16 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+.vs/
+
+## Publish output
+publish/
+publish2/
+
+## IDE
+.idea/
+*.swp
+*~

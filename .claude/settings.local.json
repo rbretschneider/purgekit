@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(mkdir -p src/DriveDoctor.Core/Scanning src/DriveDoctor.Core/Models src/DriveDoctor.Core/Cleanup src/DriveDoctor.Core/Services src/DriveDoctor.UI/Views src/DriveDoctor.UI/ViewModels src/DriveDoctor.UI/Converters src/DriveDoctor.UI/Assets)",
+      "Bash(rm -f src/DriveDoctor.Core/Class1.cs)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet publish:*)"
+    ]
+  }
+}

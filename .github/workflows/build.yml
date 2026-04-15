@@ -1,0 +1,51 @@
+name: Build & Publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    env:
+      BUILD_VERSION: "0.1.${{ github.run_number }}"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore src/PurgeKit.UI/PurgeKit.UI.csproj
+
+      - name: Build
+        run: dotnet build src/PurgeKit.UI/PurgeKit.UI.csproj -c Release --no-restore -p:Version=${{ env.BUILD_VERSION }} -p:AssemblyVersion=${{ env.BUILD_VERSION }}.0 -p:FileVersion=${{ env.BUILD_VERSION }}.0
+
+      - name: Publish self-contained exe
+        run: dotnet publish src/PurgeKit.UI/PurgeKit.UI.csproj -c Release -r win-x64 --self-contained -o publish -p:Version=${{ env.BUILD_VERSION }} -p:AssemblyVersion=${{ env.BUILD_VERSION }}.0 -p:FileVersion=${{ env.BUILD_VERSION }}.0
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PurgeKit-win-x64
+          path: publish/PurgeKit.UI.exe
+          retention-days: 90
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.BUILD_VERSION }}
+          name: PurgeKit v${{ env.BUILD_VERSION }}
+          body: |
+            Automated build from commit ${{ github.sha }}.
+
+            **Download:** Grab `PurgeKit.UI.exe` below — single file, no install required.
+          files: publish/PurgeKit.UI.exe
+          make_latest: true
