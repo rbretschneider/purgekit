@@ -82,7 +82,11 @@ public class CleanupEngine
         {
             if (Directory.Exists(result.Path))
             {
-                files.AddRange(Directory.EnumerateFiles(result.Path, "*", SearchOption.AllDirectories));
+                var excluded = result.ExcludedPaths
+                    .Select(p => p.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar)
+                    .ToList();
+                files.AddRange(Directory.EnumerateFiles(result.Path, "*", SearchOption.AllDirectories)
+                    .Where(f => !excluded.Any(e => f.StartsWith(e, StringComparison.OrdinalIgnoreCase))));
             }
             else if (File.Exists(result.Path))
             {

@@ -23,6 +23,11 @@ public class ScanResult
     public bool IsDeleted { get; set; }
     public int SkippedFiles { get; set; }
 
+    /// <summary>
+    /// Subdirectories of <see cref="Path"/> that must survive cleanup (e.g. AI assistant memory folders).
+    /// </summary>
+    public List<string> ExcludedPaths { get; set; } = new();
+
     public string SizeFormatted => FormatSize(SizeBytes);
 
     public static string FormatSize(long bytes)

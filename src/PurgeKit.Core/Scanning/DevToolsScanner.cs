@@ -21,7 +21,7 @@ public class DevToolsScanner
     {
         var results = new List<ScanResult>();
         int completed = 0;
-        const int totalPhases = 10;
+        const int totalPhases = 11;
 
         await Task.Run(() =>
         {
@@ -55,6 +55,10 @@ public class DevToolsScanner
 
             progress?.Report(new("Scanning app-specific caches...", completed, totalPhases));
             results.AddRange(ScanAppSpecificCaches(ct));
+            completed++;
+
+            progress?.Report(new("Scanning AI assistant data...", completed, totalPhases));
+            results.AddRange(ScanAiTools(ct));
             completed++;
 
             progress?.Report(new("Scanning for abandoned node_modules...", completed, totalPhases));
@@ -1130,6 +1134,268 @@ public class DevToolsScanner
             SafetyLevel.Safe, null, ct);
 
         return results;
+    }
+
+    #endregion
+
+    #region AI Tools
+
+    private List<ScanResult> ScanAiTools(CancellationToken ct)
+    {
+        var results = new List<ScanResult>();
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var temp = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
+        var claudeHome = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") ?? Path.Combine(home, ".claude");
+        var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME") ?? Path.Combine(home, ".codex");
+
+        // === Anthropic: superseded installs ===
+        // Squirrel keeps every previous Claude Desktop build side by side (~600 MB each)
+        AddOldVersions(results, "Old Claude Desktop Version",
+            "Previous Claude Desktop build left behind by the auto-updater.",
+            Path.Combine(localAppData, "AnthropicClaude"), "app-*",
+            d => ParseVersion(Path.GetFileName(d)[4..]), ct);
+
+        AddOldVersions(results, "Old Claude Code Build",
+            "Previous Claude Code CLI build bundled with Claude Desktop.",
+            Path.Combine(appData, "Claude", "claude-code"), "*",
+            d => ParseVersion(Path.GetFileName(d)), ct);
+
+        AddOldVersions(results, "Old Claude Code VM Build",
+            "Previous Claude Code build used by Claude Desktop's sandbox VM.",
+            Path.Combine(appData, "Claude", "claude-code-vm"), "*",
+            d => ParseVersion(Path.GetFileName(d)), ct);
+
+        AddOldVersions(results, "Old Claude Code CLI Version",
+            "Previous native Claude Code CLI binary.",
+            Path.Combine(home, ".local", "share", "claude", "versions"), "*",
+            d => ParseVersion(Path.GetFileName(d)), ct);
+
+        // === Anthropic: Claude Desktop caches & logs ===
+        foreach (var cache in new[] { "GPUCache", "GrShaderCache", "DawnGraphiteCache", "DawnWebGPUCache", "ShaderCache", "Crashpad", "sentry" })
+        {
+            ct.ThrowIfCancellationRequested();
+            AddIfExists(results, $"Claude Desktop {cache}",
+                $"Claude Desktop {cache} folder. Safe to delete — rebuilt on next launch.",
+                Path.Combine(appData, "Claude", cache), SafetyLevel.Safe, null, ct);
+        }
+
+        AddIfExists(results, "Claude Desktop Logs",
+            "Claude Desktop and MCP server log files. Safe to delete.",
+            Path.Combine(appData, "Claude", "logs"), SafetyLevel.Safe, null, ct);
+
+        AddIfExists(results, "Claude Code MCP Logs",
+            "Claude Code CLI cache and MCP server logs. Safe to delete.",
+            Path.Combine(localAppData, "claude-cli-nodejs"), SafetyLevel.Safe, null, ct);
+
+        // === Anthropic: Claude Code session data ===
+        AddIfExists(results, "Claude Code Scratchpads",
+            "Per-session scratchpad and background task output written by Claude Code.",
+            Path.Combine(temp, "claude"), SafetyLevel.Caution,
+            "Running Claude Code sessions use these files. Close active sessions before deleting.", ct);
+
+        foreach (var sub in new[] { "paste-cache", "shell-snapshots", "debug", "cache" })
+        {
+            ct.ThrowIfCancellationRequested();
+            AddIfExists(results, $"Claude Code {sub}",
+                $"Claude Code {sub} folder. Safe to delete — regenerated as needed.",
+                Path.Combine(claudeHome, sub), SafetyLevel.Safe, null, ct);
+        }
+
+        AddIfExists(results, "Claude Code File History",
+            "Snapshots Claude Code keeps so edits can be rewound.",
+            Path.Combine(claudeHome, "file-history"), SafetyLevel.Caution,
+            "Deleting removes the ability to rewind file edits in past sessions.", ct);
+
+        // Transcripts grow without bound; each project folder also holds a memory/ dir that must survive
+        var projectsDir = Path.Combine(claudeHome, "projects");
+        if (Directory.Exists(projectsDir))
+        {
+            foreach (var project in SafeEnumerateDirectories(projectsDir, "*"))
+            {
+                ct.ThrowIfCancellationRequested();
+                var memoryDir = Path.Combine(project, "memory");
+                var size = GetDirectorySizeSafe(project, ct)
+                    - (Directory.Exists(memoryDir) ? GetDirectorySizeSafe(memoryDir, ct) : 0);
+                if (size < 10 * 1024 * 1024) continue;
+
+                results.Add(new ScanResult
+                {
+                    Name = $"Claude Code Transcripts ({Path.GetFileName(project)})",
+                    Description = "Saved Claude Code conversation transcripts and tool output for this project. Memory files are kept.",
+                    Path = project,
+                    SizeBytes = size,
+                    FileCount = CountFilesSafe(project),
+                    Safety = SafetyLevel.Caution,
+                    SafetyExplanation = "Past sessions can no longer be resumed. The project's memory folder is preserved.",
+                    ExcludedPaths = Directory.Exists(memoryDir) ? new List<string> { memoryDir } : new()
+                });
+            }
+        }
+
+        // === OpenAI: Codex ===
+        // Codex\bin holds content-addressed tool bundles (codex, rg, ...), not versions — leave it alone
+        AddIfExists(results, "Codex Sessions",
+            "Saved OpenAI Codex conversation rollouts.",
+            Path.Combine(codexHome, "sessions"), SafetyLevel.Caution,
+            "Past Codex sessions can no longer be resumed.", ct);
+
+        AddIfExists(results, "Codex Archived Sessions",
+            "Archived OpenAI Codex conversation rollouts.",
+            Path.Combine(codexHome, "archived_sessions"), SafetyLevel.Caution,
+            "Archived Codex sessions will be gone permanently.", ct);
+
+        foreach (var sub in new[] { "cache", "tmp", "log" })
+        {
+            ct.ThrowIfCancellationRequested();
+            AddIfExists(results, $"Codex {sub}",
+                $"OpenAI Codex {sub} folder. Safe to delete.",
+                Path.Combine(codexHome, sub), SafetyLevel.Safe, null, ct);
+        }
+
+        // ChatGPT / Codex desktop (MSIX) keep Electron caches under LocalCache
+        var packagesDir = Path.Combine(localAppData, "Packages");
+        if (Directory.Exists(packagesDir))
+        {
+            foreach (var pkg in SafeEnumerateDirectories(packagesDir, "OpenAI.*"))
+            {
+                var appName = Path.GetFileName(pkg).Split('_')[0].Replace("OpenAI.", "");
+                foreach (var scope in new[] { "Roaming", "Local" })
+                {
+                    var scopeDir = Path.Combine(pkg, "LocalCache", scope);
+                    if (!Directory.Exists(scopeDir)) continue;
+                    foreach (var appDir in SafeEnumerateDirectories(scopeDir, "*"))
+                    {
+                        foreach (var cache in new[] { "Cache", "Code Cache", "GPUCache", "logs" })
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            AddIfExists(results, $"OpenAI {appName} {cache}",
+                                $"OpenAI {appName} desktop app {cache}. Safe to delete.",
+                                Path.Combine(appDir, cache), SafetyLevel.Safe, null, ct);
+                        }
+                    }
+                }
+            }
+        }
+
+        // === AI editors ===
+        foreach (var editor in new[] { "Cursor", "Windsurf" })
+        {
+            foreach (var cache in new[] { "Cache", "CachedData", "Code Cache", "GPUCache", "CachedExtensionVSIXs", "logs" })
+            {
+                ct.ThrowIfCancellationRequested();
+                AddIfExists(results, $"{editor} {cache}",
+                    $"{editor} editor {cache} folder. Safe to delete — rebuilt on next launch.",
+                    Path.Combine(appData, editor, cache), SafetyLevel.Safe, null, ct);
+            }
+        }
+
+        AddIfExists(results, "Gemini CLI Temp",
+            "Google Gemini CLI temporary session files.",
+            Path.Combine(home, ".gemini", "tmp"), SafetyLevel.Safe, null, ct);
+
+        // === Local models (large, slow to re-download) ===
+        var hfHome = Environment.GetEnvironmentVariable("HF_HOME") ?? Path.Combine(home, ".cache", "huggingface");
+        AddIfExists(results, "Hugging Face Model Cache",
+            "Downloaded Hugging Face models and datasets.",
+            Path.Combine(hfHome, "hub"), SafetyLevel.Caution,
+            "Models re-download on next use, which can take a long time for large models.", ct);
+
+        AddIfExists(results, "Hugging Face Xet Cache",
+            "Hugging Face Xet chunk cache. Safe to delete.",
+            Path.Combine(hfHome, "xet"), SafetyLevel.Safe, null, ct);
+
+        AddIfExists(results, "Ollama Models",
+            "Locally pulled Ollama models.",
+            Environment.GetEnvironmentVariable("OLLAMA_MODELS") ?? Path.Combine(home, ".ollama", "models"),
+            SafetyLevel.Caution, "Models must be pulled again with 'ollama pull'.", ct);
+
+        foreach (var lmDir in new[] { Path.Combine(home, ".lmstudio", "models"), Path.Combine(home, ".cache", "lm-studio", "models") })
+        {
+            AddIfExists(results, "LM Studio Models",
+                "Locally downloaded LM Studio models.",
+                lmDir, SafetyLevel.Caution, "Models must be downloaded again from LM Studio.", ct);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Flags every entry under <paramref name="parent"/> except the newest, ordered by
+    /// <paramref name="version"/> (falling back to last-write time when it returns null).
+    /// Entries hosting a running process are never flagged.
+    /// </summary>
+    private void AddOldVersions(List<ScanResult> results, string name, string description,
+        string parent, string pattern, Func<string, Version?> version, CancellationToken ct)
+    {
+        if (!Directory.Exists(parent)) return;
+
+        var running = GetRunningExecutablePaths();
+
+        List<string> entries;
+        try
+        {
+            entries = Directory.EnumerateFileSystemEntries(parent, pattern).ToList();
+        }
+        catch { return; }
+        if (entries.Count < 2) return;
+
+        var ordered = entries
+            .OrderByDescending(e => version(e) ?? new Version(0, 0))
+            .ThenByDescending(e => File.GetLastWriteTimeUtc(e))
+            .ToList();
+
+        foreach (var old in ordered.Skip(1))
+        {
+            ct.ThrowIfCancellationRequested();
+            var oldPrefix = old.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (running.Any(p => p.Equals(old, StringComparison.OrdinalIgnoreCase)
+                || p.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var label = $"{name} ({Path.GetFileName(old)})";
+            var explanation = $"Superseded by {Path.GetFileName(ordered[0])}. Not used by the current install.";
+
+            if (File.Exists(old))
+            {
+                var size = new FileInfo(old).Length;
+                if (size < 1024 * 1024) continue;
+                results.Add(new ScanResult
+                {
+                    Name = label,
+                    Description = description,
+                    Path = old,
+                    SizeBytes = size,
+                    FileCount = 1,
+                    Safety = SafetyLevel.Safe,
+                    SafetyExplanation = explanation
+                });
+            }
+            else
+            {
+                AddIfExists(results, label, description, old, SafetyLevel.Safe, explanation, ct);
+            }
+        }
+    }
+
+    private static Version? ParseVersion(string text) =>
+        Version.TryParse(text, out var v) ? v : null;
+
+    private static List<string> GetRunningExecutablePaths()
+    {
+        var paths = new List<string>();
+        foreach (var process in System.Diagnostics.Process.GetProcesses())
+        {
+            try
+            {
+                var file = process.MainModule?.FileName;
+                if (!string.IsNullOrEmpty(file)) paths.Add(file);
+            }
+            catch { } // access denied for elevated/system processes
+            finally { process.Dispose(); }
+        }
+        return paths;
     }
 
     #endregion

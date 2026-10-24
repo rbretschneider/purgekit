@@ -137,6 +137,17 @@ Electron app caches:
 
 - Slack, Discord, Teams, Postman, Figma, Notion, Obsidian, 1Password, Claude Desktop, Spotify streaming cache
 
+AI assistants and local models:
+
+- **Claude Desktop**: superseded `app-*` builds left by the updater, GPU/shader caches, crash reports, logs
+- **Claude Code**: superseded CLI builds (native and Desktop-bundled), session scratchpads (Caution), file-history checkpoints (Caution), per-project transcripts (Caution — the project's `memory/` folder is always kept), paste/shell/debug caches, MCP logs
+- **OpenAI Codex / ChatGPT desktop**: session rollouts (Caution), `~/.codex` cache/tmp/log, MSIX app caches and logs
+- **Cursor / Windsurf**: Electron caches, cached extension VSIXs, logs
+- **Gemini CLI**: temp session files
+- **Hugging Face, Ollama, LM Studio**: downloaded models (Caution — slow to re-download)
+
+Old-version detection keeps the newest build and never flags a folder that a running process is executing from.
+
 Other:
 
 - **PostgreSQL**: WAL logs (flagged Do Not Delete with suggestion to run CHECKPOINT), stat temp, log files
