@@ -1,6 +1,6 @@
 # App Relocation ("Move to another drive") — Plan
 
-Status: proposal, not implemented.
+Status: slice 1 (core `RelocationService`) implemented in `src/PurgeKit.Core/Relocation`; slices 2–5 not started.
 
 ## Goal
 
@@ -67,14 +67,39 @@ Junction constraints:
 
 ## Implementation slices
 
-1. **Core: `RelocationService`** — eligibility checks, copy+verify, junction create/remove (`DeviceIoControl FSCTL_SET_REPARSE_POINT`, or `cmd /c mklink /J` as a first cut), journal + crash recovery. Unit tests against a temp dir on a second volume.
+1. **Core: `RelocationService`** — **done.** Eligibility checks, copy+verify, junction create/remove (`DeviceIoControl FSCTL_SET_REPARSE_POINT`), journal + crash recovery. Covered by `tests/PurgeKit.Core.Tests`, and checked once by hand with a real C: → D: move and restore. See "Slice 1 as built" below.
 2. **Core: classifier** — Movable / Launcher / Store / Blocked with reasons; launcher detection for Steam (`libraryfolders.vdf`), Epic (`Manifests\*.item`), GOG.
 3. **UI: Relocate view + view model** — list, filter, drive picker, progress, moved-apps list.
 4. **Store apps** — `PackageManager.MovePackageAsync` path, only if slices 1–3 land well.
 5. **Docs** — README section, safety table.
 
-## Open questions
+## Slice 1 as built
 
-- Default relocation root: `D:\PurgeKit\Relocated\...` mirroring the original path (proposed), or let the user pick?
-- Should AppData data dirs (not just program binaries) be in scope for v1, or a later slice?
-- Elevation: PurgeKit already elevates for some actions — relocate Program Files apps via a per-action elevated helper, or require running elevated?
+Entry point: `RelocationModule.CreateDefault()` gives `Service` (`IRelocationService`) and `Recovery`
+(`IRelocationRecovery`). Call `Recovery.RecoverAsync()` once at startup before showing relocation actions.
+
+- **Eligibility** is a set of independent `IEligibilityRule`s (protected path, already relocated, links inside,
+  target volume type/file system, same volume / free space, target path collisions, open files via Restart
+  Manager, registered services/drivers, elevation). Add a rule to add a check.
+- **Relocate**: journal `Copying` → copy (ACLs, attributes, timestamps) → verify (file list, sizes, SHA-256 of
+  .exe/.dll/.sys) → `Verified` → rename original to `*.purgekit-pending` → junction → `Swapped` → delete original →
+  `Completed`. Cancellation is honoured until the swap; any failure before `Completed` rolls back.
+- **Restore**: blocked while the relocated files are open, the junction was changed, or the original drive lacks
+  space. Copy back to `*.purgekit-restoring` → verify → swap junction for the real folder → delete the relocated copy.
+- **Recovery** finishes a `Swapped` move whose junction works and rolls back anything earlier; an interrupted
+  restore is finished if the real folder is back, otherwise rolled back.
+- **Safety invariant**: the relocated copy is only ever deleted while a real folder exists at the original path.
+
+Decisions taken for the open questions (change them if Ryan prefers otherwise):
+
+- Target layout: `<root>\<drive letter>\<original path>`. The caller picks `root`, and
+  `RelocationPaths.DefaultTargetRoot("D:\")` gives `D:\PurgeKit\Relocated`.
+- Scope: the service works on any folder. AppData folders are not special-cased; the UI decides what to offer.
+- Elevation: no elevated helper. Folders under Program Files, ProgramData or Windows get a `RequiresElevation`
+  blocker unless PurgeKit runs as administrator.
+
+Known limits of slice 1:
+
+- Folders containing junctions, symlinks or cloud placeholders are refused (`ContainsLinks`), not copied as links.
+- Services and drivers are refused rather than stopped and restarted.
+- The journal is safe within one process only. Two PurgeKit instances relocating at once are not guarded against.

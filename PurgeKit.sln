@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PurgeKit.Core", "src\PurgeK
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PurgeKit.UI", "src\PurgeKit.UI\PurgeKit.UI.csproj", "{2F920D19-0745-415C-A2C2-B0843E7FAB33}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8CEE6D28-F639-46E9-8738-7E16FFD52E62}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PurgeKit.Core.Tests", "tests\PurgeKit.Core.Tests\PurgeKit.Core.Tests.csproj", "{003F008F-5044-4BFC-B2BB-F49329252AE4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +30,14 @@ Global
 		{2F920D19-0745-415C-A2C2-B0843E7FAB33}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2F920D19-0745-415C-A2C2-B0843E7FAB33}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2F920D19-0745-415C-A2C2-B0843E7FAB33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{003F008F-5044-4BFC-B2BB-F49329252AE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{003F008F-5044-4BFC-B2BB-F49329252AE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{003F008F-5044-4BFC-B2BB-F49329252AE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{003F008F-5044-4BFC-B2BB-F49329252AE4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{FA6CE2B3-46DD-43CE-BD26-9BAA63CAF5BC} = {957CD2CE-2E29-42F0-B409-79D1B3CE9002}
 		{2F920D19-0745-415C-A2C2-B0843E7FAB33} = {957CD2CE-2E29-42F0-B409-79D1B3CE9002}
+		{003F008F-5044-4BFC-B2BB-F49329252AE4} = {8CEE6D28-F639-46E9-8738-7E16FFD52E62}
 	EndGlobalSection
 EndGlobal

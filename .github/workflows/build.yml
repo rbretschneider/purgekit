@@ -30,6 +30,9 @@ jobs:
       - name: Build
         run: dotnet build src/PurgeKit.UI/PurgeKit.UI.csproj -c Release --no-restore -p:Version=${{ env.BUILD_VERSION }} -p:AssemblyVersion=${{ env.BUILD_VERSION }}.0 -p:FileVersion=${{ env.BUILD_VERSION }}.0
 
+      - name: Test
+        run: dotnet test tests/PurgeKit.Core.Tests/PurgeKit.Core.Tests.csproj -c Release
+
       - name: Publish self-contained exe
         run: dotnet publish src/PurgeKit.UI/PurgeKit.UI.csproj -c Release -r win-x64 --self-contained -o publish -p:Version=${{ env.BUILD_VERSION }} -p:AssemblyVersion=${{ env.BUILD_VERSION }}.0 -p:FileVersion=${{ env.BUILD_VERSION }}.0
 
