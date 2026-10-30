@@ -85,7 +85,7 @@ public sealed class RelocationService : IRelocationService
     {
         var now = _time.GetUtcNow().UtcDateTime;
         var entry = new RelocationEntry(
-            Guid.NewGuid(), report.FromPath, report.ToPath, RelocationState.Copying, report.SizeBytes, now, now);
+            Guid.NewGuid(), report.FromPath, report.ToPath, RelocationState.Copying, report.SizeBytes, now, now, report.DisplayName);
         await _journal.SaveAsync(entry, ct).ConfigureAwait(false);
         return entry;
     }

@@ -11,6 +11,7 @@ namespace PurgeKit.Core.Relocation.Models;
 /// <param name="SizeBytes">Size of the folder when it was relocated.</param>
 /// <param name="CreatedUtc">When the relocation started.</param>
 /// <param name="UpdatedUtc">When the state last changed.</param>
+/// <param name="DisplayName">Friendly name of what was moved, e.g. the app's name; null when unknown.</param>
 public sealed record RelocationEntry(
     Guid Id,
     string SourcePath,
@@ -18,4 +19,5 @@ public sealed record RelocationEntry(
     RelocationState State,
     long SizeBytes,
     DateTime CreatedUtc,
-    DateTime UpdatedUtc);
+    DateTime UpdatedUtc,
+    string? DisplayName = null);

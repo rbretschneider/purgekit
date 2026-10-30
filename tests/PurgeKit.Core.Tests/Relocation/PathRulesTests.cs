@@ -40,6 +40,13 @@ public sealed class PathRulesTests
     }
 
     [Fact]
+    public void IsSameOrUnder_TreatsEverythingOnADriveAsUnderItsRoot()
+    {
+        RelocationPaths.IsSameOrUnder(@"C:\Program Files\App", @"C:\").Should().BeTrue();
+        RelocationPaths.IsSameOrUnder(@"D:\Games", @"C:\").Should().BeFalse();
+    }
+
+    [Fact]
     public void RequiredFreeBytes_AddsTenPercentHeadroom()
     {
         RelocationCapacity.RequiredFreeBytes(1000).Should().Be(1100);

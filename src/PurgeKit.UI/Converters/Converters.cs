@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using PurgeKit.Core.Models;
+using PurgeKit.Core.Relocation.Apps;
 
 namespace PurgeKit.UI.Converters;
 
@@ -59,6 +60,40 @@ public class SafetyLevelToTextConverter : IValueConverter
             SafetyLevel.Caution => "Caution",
             SafetyLevel.DoNotDelete => "Do Not Delete",
             _ => "Unknown"
+        } : "Unknown";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotImplementedException();
+}
+
+public class AppMoveOptionToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is AppMoveOption option ? option switch
+        {
+            AppMoveOption.Movable => new SolidColorBrush(Color.FromRgb(76, 175, 80)),
+            AppMoveOption.StoreApp => new SolidColorBrush(Color.FromRgb(0, 120, 212)),
+            AppMoveOption.UseLauncher => new SolidColorBrush(Color.FromRgb(255, 152, 0)),
+            _ => new SolidColorBrush(Color.FromRgb(158, 158, 158))
+        } : new SolidColorBrush(Colors.Gray);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotImplementedException();
+}
+
+public class AppMoveOptionToTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is AppMoveOption option ? option switch
+        {
+            AppMoveOption.Movable => "Movable",
+            AppMoveOption.StoreApp => "Store app",
+            AppMoveOption.UseLauncher => "Use launcher",
+            _ => "Can't move"
         } : "Unknown";
     }
 

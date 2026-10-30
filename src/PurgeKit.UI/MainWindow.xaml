@@ -61,6 +61,10 @@
                                  Tag="&#xE74C;" Content="Programs"
                                  IsChecked="{Binding CurrentSection, Converter={StaticResource StringMatchToBool}, ConverterParameter=Programs}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Programs" />
+                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                                 Tag="&#xE8DE;" Content="Move Apps"
+                                 IsChecked="{Binding CurrentSection, Converter={StaticResource StringMatchToBool}, ConverterParameter=Relocate}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="Relocate" />
                 </StackPanel>
 
                 <!-- Settings + version at bottom -->
@@ -88,6 +92,8 @@
                             Visibility="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringMatchToVis}, ConverterParameter=Scan}" />
             <views:ProgramsView DataContext="{Binding ProgramsVm}"
                                 Visibility="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringMatchToVis}, ConverterParameter=Programs}" />
+            <views:RelocateView DataContext="{Binding RelocateVm}"
+                                Visibility="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringMatchToVis}, ConverterParameter=Relocate}" />
             <views:SettingsView DataContext="{Binding SettingsVm}"
                                 Visibility="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringMatchToVis}, ConverterParameter=Settings}" />
         </Grid>

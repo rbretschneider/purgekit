@@ -55,9 +55,9 @@ public sealed class RelocationEligibilityChecker : IEligibilityChecker
 
         var context = new EligibilityContext(request, targetPath, profile, existing);
         var blockers = _rules.SelectMany(rule => rule.Evaluate(context)).ToList();
-        return new EligibilityReport(request.SourcePath, targetPath, profile.SizeBytes, blockers);
+        return new EligibilityReport(request.SourcePath, targetPath, profile.SizeBytes, blockers, request.DisplayName);
     }
 
     private static EligibilityReport Blocked(RelocationRequest request, string targetPath, BlockerKind kind, string detail) =>
-        new(request.SourcePath, targetPath, 0, [new RelocationBlocker(kind, detail)]);
+        new(request.SourcePath, targetPath, 0, [new RelocationBlocker(kind, detail)], request.DisplayName);
 }

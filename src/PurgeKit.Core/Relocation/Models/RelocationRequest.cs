@@ -9,12 +9,17 @@ public sealed record RelocationRequest
     /// <summary>Creates a validated request.</summary>
     /// <param name="sourcePath">Absolute path of the folder to move.</param>
     /// <param name="targetRoot">Absolute folder on the target drive that relocated folders are placed under.</param>
+    /// <param name="displayName">Friendly name recorded in the journal, e.g. the app's name.</param>
     /// <exception cref="ArgumentException">Either path is empty or not absolute.</exception>
-    public RelocationRequest(string sourcePath, string targetRoot)
+    public RelocationRequest(string sourcePath, string targetRoot, string? displayName = null)
     {
         SourcePath = RelocationPaths.NormalizeDirectory(sourcePath, nameof(sourcePath));
         TargetRoot = RelocationPaths.NormalizeDirectory(targetRoot, nameof(targetRoot));
+        DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
     }
+
+    /// <summary>Friendly name recorded in the journal, or null.</summary>
+    public string? DisplayName { get; }
 
     /// <summary>Absolute, normalized path of the folder to move.</summary>
     public string SourcePath { get; }

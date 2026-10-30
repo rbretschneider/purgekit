@@ -36,11 +36,19 @@ jobs:
       - name: Publish self-contained exe
         run: dotnet publish src/PurgeKit.UI/PurgeKit.UI.csproj -c Release -r win-x64 --self-contained -o publish -p:Version=${{ env.BUILD_VERSION }} -p:AssemblyVersion=${{ env.BUILD_VERSION }}.0 -p:FileVersion=${{ env.BUILD_VERSION }}.0
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=${{ env.BUILD_VERSION }} /DSourceExe=..\publish\PurgeKit.UI.exe installer\PurgeKit.iss'
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PurgeKit-win-x64
-          path: publish/PurgeKit.UI.exe
+          name: PurgeKit-${{ env.BUILD_VERSION }}-win-x64
+          path: |
+            publish/PurgeKit.UI.exe
+            publish/PurgeKit-Setup-${{ env.BUILD_VERSION }}.exe
           retention-days: 90
 
       - name: Create GitHub Release
@@ -52,6 +60,10 @@ jobs:
           body: |
             Automated build from commit ${{ github.sha }}.
 
-            **Download:** Grab `PurgeKit.UI.exe` below — single file, no install required.
-          files: publish/PurgeKit.UI.exe
+            **Install:** run `PurgeKit-Setup-${{ env.BUILD_VERSION }}.exe` — adds PurgeKit to the Start menu and Apps & features, and upgrades any earlier install in place.
+
+            **Portable:** or grab `PurgeKit.UI.exe` — single file, no install required.
+          files: |
+            publish/PurgeKit-Setup-${{ env.BUILD_VERSION }}.exe
+            publish/PurgeKit.UI.exe
           make_latest: true

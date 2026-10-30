@@ -64,8 +64,10 @@ public static class RelocationPaths
     {
         var trimmedPath = Path.TrimEndingDirectorySeparator(path);
         var trimmedAncestor = Path.TrimEndingDirectorySeparator(ancestor);
+        // Drive roots keep their separator after trimming ("C:\"), so only add one when it is missing.
+        var prefix = Path.EndsInDirectorySeparator(trimmedAncestor) ? trimmedAncestor : trimmedAncestor + Path.DirectorySeparatorChar;
         return string.Equals(trimmedPath, trimmedAncestor, StringComparison.OrdinalIgnoreCase)
-            || trimmedPath.StartsWith(trimmedAncestor + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            || trimmedPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>True when two directory paths name the same folder.</summary>

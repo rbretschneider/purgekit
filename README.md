@@ -14,11 +14,14 @@ Built with WPF (.NET 8), using the ModernWpf dark theme and the CommunityToolkit
 
 ## Download
 
-[**Download latest release**](https://github.com/rbretschneider/purgekit/releases/latest) — grab `PurgeKit.UI.exe` from the Assets section. No install required, just run the exe.
+[**Download latest release**](https://github.com/rbretschneider/purgekit/releases/latest) and pick one of the assets:
 
-**Requirements:** Windows 10/11 (x64). No .NET runtime install needed — the exe is self-contained.
+- **`PurgeKit-Setup-<version>.exe`** — installer. Adds PurgeKit to the Start menu and Apps & features, and upgrades any earlier install in place. Installs machine-wide by default; `PurgeKit-Setup-<version>.exe /CURRENTUSER` installs for just you without admin rights.
+- **`PurgeKit.UI.exe`** — portable. Single file, no install required.
 
-PurgeKit checks for updates automatically on startup. When a new version is available, it will prompt you to download and install it in-place — no manual re-downloading needed.
+**Requirements:** Windows 10/11 (x64). No .NET runtime install needed — both are self-contained.
+
+PurgeKit checks for updates automatically on startup. Installed copies update by running the new installer silently and relaunching; the portable exe replaces itself in place.
 
 ## Why
 
@@ -176,6 +179,22 @@ A separate tab lists all installed programs (from the Windows registry) with:
 - Sortable columns (click headers to toggle sort direction)
 - Uninstall button (launches the program's own uninstaller)
 
+## Move Apps
+
+Moves apps you rarely use off the system drive to another internal drive, and back again.
+
+- Lists apps on `C:` with size, last-used date, and a verdict for each:
+  - **Movable** — PurgeKit copies the folder to `<drive>\PurgeKit\Relocated\C\<original path>`, verifies it, and leaves an NTFS junction at the old path. Shortcuts, settings, services' paths and uninstallers keep working because every `C:\...` reference still resolves.
+  - **Store app** — moved by Windows itself (`Move-AppxPackage`), the same mechanism as Settings → Apps → Move.
+  - **Use launcher** — Steam, Epic and GOG games; their launchers must move them so their own records stay correct.
+  - **Can't move** — runtimes, drivers, security/anti-cheat/VPN software, Office/Visual Studio/Edge, virtualization, and anything installed into a Windows or shared folder.
+- Filters: not used for 30 days–1 year, minimum size, search, and an option to show unmovable apps with the reason.
+- Before each move PurgeKit re-checks: apps holding the folder open (via Windows Restart Manager), Windows services/drivers running from it, links inside it, free space, and the target drive (fixed NTFS/ReFS only, never removable or network).
+- Every step is journaled in `%LOCALAPPDATA%\PurgeKit\relocations.json`. A failure or cancel before the switch-over leaves the app untouched; an interrupted move (crash, power loss) is finished or undone the next time PurgeKit starts.
+- **Moved apps** lists everything moved, with **Move back** and **Open**. Moving back copies the app home, verifies it, and removes the copy on the other drive.
+
+If the other drive is disconnected, a moved app will not start until the drive is back. Uninstalling PurgeKit does not affect moved apps.
+
 ## Settings
 
 | Setting | Default | Description |
@@ -202,11 +221,23 @@ dotnet publish src/PurgeKit.UI/PurgeKit.UI.csproj -c Release -r win-x64 --self-c
 
 The published exe is at `publish/PurgeKit.UI.exe` — a single self-contained binary, no .NET runtime install required.
 
-A GitHub Actions workflow (`.github/workflows/build.yml`) runs on every push to `main`:
+```bash
+# Run the tests
+dotnet test tests/PurgeKit.Core.Tests/PurgeKit.Core.Tests.csproj
+```
 
-- Builds and publishes a self-contained exe
-- Creates a GitHub Release tagged `v0.1.<run_number>` with the exe attached
-- The version is baked into the assembly so the app's auto-update checker can compare against it
+```bash
+# Build the installer (needs Inno Setup 6: winget install JRSoftware.InnoSetup)
+iscc /DAppVersion=0.1.0 /DSourceExe=..\publish\PurgeKit.UI.exe installer\PurgeKit.iss
+```
+
+A GitHub Actions workflow (`.github/workflows/build.yml`) runs on every push and pull request to `main`. Every run gets a new version, `0.1.<run_number>`:
+
+- Builds, runs the tests, and publishes the self-contained exe
+- Builds the installer `PurgeKit-Setup-0.1.<run_number>.exe` with Inno Setup
+- Uploads both as a build artifact (every run, including pull requests)
+- On pushes to `main`, creates a GitHub Release tagged `v0.1.<run_number>` with both attached
+- The version is baked into the assembly and the installer so the auto-updater can compare against it
 
 ## Admin Elevation
 
@@ -226,6 +257,11 @@ src/
       UnifiedScanner.cs      Parallel orchestrator, streams results via Channel
     Cleanup/
       CleanupEngine.cs       File deletion (permanent or Recycle Bin via Shell32)
+    Relocation/              Move Apps: junction-based moves with journal and crash recovery
+      RelocationService.cs   Copy → verify → junction → delete, and the reverse for restore
+      Rules/                 Pre-move safety checks (open files, services, links, space, drive)
+      Infrastructure/        NTFS junctions, Restart Manager, ACL-preserving copier, JSON journal
+      Apps/                  App discovery, classification, Store app moves, launcher detection
     Models/
       ScanResult.cs          Universal scan result model
       AppSettings.cs         Persisted configuration
@@ -239,6 +275,7 @@ src/
     Views/
       ScanView.xaml          Two-column scan results (Safe / Needs Review)
       ProgramsView.xaml      Installed programs list with sort/filter
+      RelocateView.xaml      Move Apps panel: candidates, moved apps, progress
       SettingsView.xaml      Configuration panel
     ViewModels/
       ScanViewModel.cs       Scan orchestration, item actions (delete, compact, prune, gc)
@@ -248,6 +285,12 @@ src/
     Converters/              WPF value converters (bool-to-visibility, safety-to-color, etc.)
     Styles/
       NavStyles.xaml         Sidebar navigation button template
+
+tests/
+  PurgeKit.Core.Tests/     xUnit + FluentAssertions tests for the Core library
+
+installer/
+  PurgeKit.iss             Inno Setup script for PurgeKit-Setup-<version>.exe
 ```
 
 ## Tech Stack

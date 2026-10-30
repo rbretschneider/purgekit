@@ -1,0 +1,230 @@
+<UserControl x:Class="PurgeKit.UI.Views.RelocateView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:conv="clr-namespace:PurgeKit.UI.Converters"
+             x:Name="Root">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
+        <conv:AppMoveOptionToBrushConverter x:Key="OptionToBrush" />
+        <conv:AppMoveOptionToTextConverter x:Key="OptionToText" />
+
+        <!-- Progress + message shown under a row while it is being moved -->
+        <DataTemplate x:Key="OperationStatusTemplate">
+            <StackPanel>
+                <ProgressBar Height="4" Margin="0,4,0,2" Maximum="100"
+                             Value="{Binding Percent}" IsIndeterminate="{Binding IsIndeterminate}"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding Message}" FontSize="11" TextWrapping="Wrap" Opacity="0.85">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsError}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource SafetyDangerBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Move Apps" FontSize="28" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding StatusText}" Opacity="0.7" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding WarningText}" Foreground="{StaticResource SafetyCautionBrush}" Margin="0,4,0,0" TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Target drive + actions -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Move to:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox Grid.Column="1" Width="260" ItemsSource="{Binding TargetDrives}" SelectedItem="{Binding SelectedDrive}"
+                      DisplayMemberPath="DisplayText" AutomationProperties.Name="Target drive"
+                      IsEnabled="{Binding IsOperationRunning, Converter={StaticResource InverseBool}}" />
+            <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource SafetyCautionBrush}"
+                       Text="No other internal NTFS drive found. Moved apps need a second fixed drive."
+                       Visibility="{Binding HasNoTargetDrive, Converter={StaticResource BoolToVis}}" />
+            <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelOperationCommand}" Margin="0,0,8,0"
+                    Style="{StaticResource DeleteButtonStyle}"
+                    Visibility="{Binding IsOperationRunning, Converter={StaticResource BoolToVis}}" />
+            <Button Grid.Column="4" Content="Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+        </Grid>
+
+        <!-- Filters -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="240" Margin="0,0,16,0"
+                     ui:ControlHelper.PlaceholderText="Search by name or publisher..." AutomationProperties.Name="Search apps" />
+            <TextBlock Text="Not used for:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox ItemsSource="{Binding IdleOptions}" SelectedItem="{Binding SelectedIdle}" Width="110" Margin="0,0,16,0"
+                      AutomationProperties.Name="Not used for" />
+            <TextBlock Text="At least:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox ItemsSource="{Binding SizeOptions}" SelectedItem="{Binding SelectedSize}" Width="100" Margin="0,0,16,0"
+                      AutomationProperties.Name="Minimum size" />
+            <CheckBox Content="Show apps that can't be moved" IsChecked="{Binding ShowUnmovable}" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <ui:ProgressBar Grid.Row="3" IsIndeterminate="True" Margin="0,0,0,8"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
+
+        <TabControl Grid.Row="4">
+            <!-- Apps still on the system drive -->
+            <TabItem Header="Apps on system drive">
+                <Grid>
+                    <ListView ItemsSource="{Binding CandidatesView}" Margin="0,8,0,0">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="App" Width="260">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel ToolTip="{Binding InstallPath}">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Publisher}" FontSize="11" Opacity="0.6" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Last used" Width="100">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding LastUsedText}" ToolTip="{Binding LastUsedTooltip}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Size" Width="90" DisplayMemberBinding="{Binding SizeText}" />
+                                <GridViewColumn Header="Can it move?" Width="250">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel ToolTip="{Binding Reason}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                             Fill="{Binding Option, Converter={StaticResource OptionToBrush}}" />
+                                                    <TextBlock Text="{Binding Option, Converter={StaticResource OptionToText}}" FontWeight="SemiBold" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Reason}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="" Width="170">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <Button Content="Move" Style="{StaticResource AccentButtonStyle}" Padding="16,6"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat='Move {0}'}"
+                                                        Command="{Binding DataContext.MoveCommand, ElementName=Root}" CommandParameter="{Binding}"
+                                                        Visibility="{Binding CanMove, Converter={StaticResource BoolToVis}}" />
+                                                <ContentControl Content="{Binding Operation}" ContentTemplate="{StaticResource OperationStatusTemplate}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                                Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="&#xE8DE;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="48"
+                                   HorizontalAlignment="Center" Opacity="0.3" />
+                        <TextBlock Text="No apps match these filters" FontSize="16" HorizontalAlignment="Center" Opacity="0.5" Margin="0,8,0,0" />
+                        <TextBlock Text="Try a shorter 'Not used for' period or a smaller size" FontSize="13" HorizontalAlignment="Center" Opacity="0.4" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Apps already moved -->
+            <TabItem Header="{Binding MovedAppsHeader}">
+                <Grid>
+                    <ListView ItemsSource="{Binding MovedApps}" Margin="0,8,0,0">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="App" Width="240">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding KindText}" FontSize="11" Opacity="0.6" />
+                                                <TextBlock Text="Interrupted — restart PurgeKit to finish or undo it" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource SafetyCautionBrush}"
+                                                           Visibility="{Binding IsInterrupted, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Now on" Width="300">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding CurrentPath}" TextTrimming="CharacterEllipsis" ToolTip="{Binding CurrentPath}" />
+                                                <TextBlock Text="{Binding OriginalPath, StringFormat='Originally {0}'}" FontSize="11" Opacity="0.6"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalPath}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Size" Width="80" DisplayMemberBinding="{Binding SizeText}" />
+                                <GridViewColumn Header="Moved" Width="90" DisplayMemberBinding="{Binding MovedText}" />
+                                <GridViewColumn Header="" Width="210">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="Move back" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,0"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Move {0} back'}"
+                                                            Command="{Binding DataContext.MoveBackCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                                                    <Button Content="Open" Style="{StaticResource SecondaryButtonStyle}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Open {0} folder'}"
+                                                            Command="{Binding DataContext.OpenFolderCommand, ElementName=Root}" CommandParameter="{Binding CurrentPath}" />
+                                                </StackPanel>
+                                                <ContentControl Content="{Binding Operation}" ContentTemplate="{StaticResource OperationStatusTemplate}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                                Visibility="{Binding HasNoMovedApps, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="&#xE8DE;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="48"
+                                   HorizontalAlignment="Center" Opacity="0.3" />
+                        <TextBlock Text="No apps moved yet" FontSize="16" HorizontalAlignment="Center" Opacity="0.5" Margin="0,8,0,0" />
+                        <TextBlock Text="Apps you move show up here, ready to move back" FontSize="13" HorizontalAlignment="Center" Opacity="0.4" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

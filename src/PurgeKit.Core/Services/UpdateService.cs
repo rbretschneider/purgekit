@@ -61,9 +61,11 @@ public static class UpdateService
             if (remoteComparable <= currentComparable)
                 return null; // Up to date
 
-            // Find the exe asset download URL
-            var exeAsset = json.Assets?.FirstOrDefault(a =>
-                a.Name?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true);
+            // Installed copies update through the installer; the portable exe replaces itself
+            var assets = json.Assets ?? new List<GitHubAsset>();
+            var wanted = ReleaseAssetSelector.Select(
+                assets.Select(a => a.Name ?? ""), ReleaseAssetSelector.IsInstalledCopy(AppContext.BaseDirectory));
+            var exeAsset = assets.FirstOrDefault(a => a.Name == wanted);
             var downloadUrl = exeAsset?.BrowserDownloadUrl ?? json.HtmlUrl ?? "";
 
             return new UpdateInfo(json.TagName, downloadUrl, json.HtmlUrl ?? "");
@@ -83,6 +85,9 @@ public static class UpdateService
         string downloadUrl,
         IProgress<string>? progress = null)
     {
+        if (ReleaseAssetSelector.IsInstaller(Path.GetFileName(new Uri(downloadUrl).LocalPath)))
+            return await DownloadAndRunInstallerAsync(downloadUrl, progress);
+
         try
         {
             var currentExe = Environment.ProcessPath;
@@ -143,6 +148,42 @@ public static class UpdateService
         catch (Exception ex)
         {
             LogService.LogError("UpdateDownload", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Downloads the installer and runs it silently; it upgrades in place, closes PurgeKit and relaunches it.
+    /// Returns true if the installer was started (app should exit).
+    /// </summary>
+    private static async Task<bool> DownloadAndRunInstallerAsync(string downloadUrl, IProgress<string>? progress)
+    {
+        try
+        {
+            var installerPath = Path.Combine(Path.GetTempPath(), Path.GetFileName(new Uri(downloadUrl).LocalPath));
+
+            progress?.Report("Downloading update...");
+            using (var response = await Http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+            {
+                response.EnsureSuccessStatusCode();
+                await using var stream = await response.Content.ReadAsStreamAsync();
+                await using var file = File.Create(installerPath);
+                await stream.CopyToAsync(file);
+            }
+
+            progress?.Report("Installing update...");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = installerPath,
+                Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RELAUNCH",
+                UseShellExecute = true
+            });
+
+            return true; // Caller should exit the app so the installer can replace it
+        }
+        catch (Exception ex)
+        {
+            LogService.LogError("UpdateInstall", ex);
             return false;
         }
     }

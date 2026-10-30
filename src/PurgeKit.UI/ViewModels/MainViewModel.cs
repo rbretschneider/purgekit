@@ -1,7 +1,9 @@
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PurgeKit.Core.Relocation.Apps;
 using PurgeKit.Core.Services;
+using PurgeKit.UI.Services;
 
 namespace PurgeKit.UI.ViewModels;
 
@@ -34,6 +36,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private SettingsViewModel _settingsVm;
 
+    [ObservableProperty]
+    private RelocateViewModel _relocateVm;
+
     public string VersionText => $"v{UpdateService.GetCurrentVersion().ToString(3)}";
 
     private CancellationTokenSource? _globalCts;
@@ -43,7 +48,11 @@ public partial class MainViewModel : ObservableObject
         _scanVm = new ScanViewModel(this);
         _programsVm = new ProgramsViewModel();
         _settingsVm = new SettingsViewModel(this);
+        _relocateVm = new RelocateViewModel(
+            AppRelocationServices.CreateDefault(), new MessageBoxUserPrompt(), new ExplorerShellLauncher(), RefreshDriveInfo);
         RefreshDriveInfo();
+        // Settle any move interrupted by a crash or power loss before the user can start another.
+        _ = _relocateVm.InitializeAsync();
         _ = CheckForUpdateAsync();
     }
 
@@ -99,7 +108,14 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Navigate(string section) => CurrentSection = section;
+    private void Navigate(string section)
+    {
+        CurrentSection = section;
+        if (section == "Relocate")
+        {
+            _ = RelocateVm.EnsureLoadedAsync();
+        }
+    }
 
     [RelayCommand]
     private async Task ScanAllAsync()

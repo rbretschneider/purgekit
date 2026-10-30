@@ -1,6 +1,6 @@
 # App Relocation ("Move to another drive") — Plan
 
-Status: slice 1 (core `RelocationService`) implemented in `src/PurgeKit.Core/Relocation`; slices 2–5 not started.
+Status: all five slices implemented. Core in `src/PurgeKit.Core/Relocation`, UI in `RelocateView` / `RelocateViewModel`.
 
 ## Goal
 
@@ -68,10 +68,12 @@ Junction constraints:
 ## Implementation slices
 
 1. **Core: `RelocationService`** — **done.** Eligibility checks, copy+verify, junction create/remove (`DeviceIoControl FSCTL_SET_REPARSE_POINT`), journal + crash recovery. Covered by `tests/PurgeKit.Core.Tests`, and checked once by hand with a real C: → D: move and restore. See "Slice 1 as built" below.
-2. **Core: classifier** — Movable / Launcher / Store / Blocked with reasons; launcher detection for Steam (`libraryfolders.vdf`), Epic (`Manifests\*.item`), GOG.
-3. **UI: Relocate view + view model** — list, filter, drive picker, progress, moved-apps list.
-4. **Store apps** — `PackageManager.MovePackageAsync` path, only if slices 1–3 land well.
-5. **Docs** — README section, safety table.
+2. **Core: classifier** — **done.** `Relocation/Apps`: `AppClassifier` runs `ProtectedLocationRule`, `LauncherManagedRule` (Steam `libraryfolders.vdf`, Epic `Manifests\*.item`, GOG registry) and `DenylistRule` (whole-word matching; runtimes, drivers, security/anti-cheat/VPN, Office/Visual Studio editions/Edge, virtualization). `AppCandidateProvider` keeps real, unlinked folders on the system drive and measures size when the installer recorded none.
+3. **UI: Relocate view + view model** — **done.** "Move Apps" nav item: drive picker (fixed NTFS/ReFS, non-system), idle/size/search filters, per-row progress and cancel, confirmation dialogs, Moved apps tab with Move back / Open. Startup runs recovery before anything else.
+4. **Store apps** — **done, differently than planned.** Uses the Appx PowerShell module (`Add-AppxVolume`, `Mount-AppxVolume`, `Move-AppxPackage`) instead of `PackageManager`, so the projects keep `net8.0-windows` and the exe does not grow by the WinRT projection. Package names and drive roots are validated against strict patterns before they reach a script. Not exercised against a real package yet (see below).
+5. **Docs** — **done.** README "Move Apps" section.
+
+Verification: 113 Core tests; one real C: → D: move and restore; real candidate listing on the dev machine (54 movable desktop apps, 59 Store apps, 19 blocked); off-screen render of the panel with no binding errors. **Not yet done:** moving a real Store app (it registers `X:\WindowsApps` as an app volume, a persistent system change), and a move started from the running app's UI.
 
 ## Slice 1 as built
 
