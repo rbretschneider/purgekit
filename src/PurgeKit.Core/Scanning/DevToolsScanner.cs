@@ -1,4 +1,5 @@
 using PurgeKit.Core.Models;
+using PurgeKit.Core.Relocation;
 using PurgeKit.Core.Services;
 using Microsoft.Win32;
 
@@ -76,6 +77,9 @@ public class DevToolsScanner
 
     #region WSL
 
+    private static readonly string DockerWslRoot = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Docker", "wsl");
+
     private List<ScanResult> ScanWsl(CancellationToken ct)
     {
         var results = new List<ScanResult>();
@@ -98,6 +102,18 @@ public class DevToolsScanner
                     var basePath = distroKey.GetValue("BasePath") as string;
 
                     if (string.IsNullOrEmpty(basePath)) continue;
+
+                    // WSL records some paths in \\?\ form; normalize so the same disk isn't listed twice.
+                    if (basePath.StartsWith(@"\\?\", StringComparison.Ordinal))
+                    {
+                        basePath = basePath[4..];
+                    }
+
+                    // Docker Desktop's distros are reported (with Prune + Compact) by the Docker section.
+                    if (RelocationPaths.IsSameOrUnder(basePath, DockerWslRoot))
+                    {
+                        continue;
+                    }
 
                     // Look for the VHDX
                     var vhdxPath = Path.Combine(basePath, "ext4.vhdx");
@@ -203,12 +219,12 @@ public class DevToolsScanner
                 results.Add(new ScanResult
                 {
                     Name = "Docker Desktop (WSL2 Data)",
-                    Description = "Docker's WSL2 virtual disk stores all images, containers, volumes, and build cache. This file typically grows much larger than the data it contains.",
+                    Description = "Docker's WSL2 virtual disk stores all images, containers, volumes, and build cache. It never shrinks on its own: Prune removes unused Docker data, then Compact (with Docker Desktop quit) gives the freed space back to Windows.",
                     Path = vhdxPath,
                     SizeBytes = fi.Length,
                     FileCount = 1,
                     Safety = SafetyLevel.Caution,
-                    SafetyExplanation = "Deleting this destroys all Docker images, containers, and volumes. Use 'docker system prune -a' to clean up safely, or compact the VHDX.",
+                    SafetyExplanation = "Deleting this destroys all Docker images, containers, and volumes. Use Prune and Compact instead.",
                     LastModified = fi.LastWriteTime
                 });
                 LogService.Log($"Docker VHDX: {ScanResult.FormatSize(fi.Length)} at {vhdxPath}");

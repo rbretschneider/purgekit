@@ -214,8 +214,9 @@ public partial class ScanItemVm : ObservableObject
     public bool IsDocker => Name.StartsWith("Docker");
     public bool IsGit => Name.StartsWith(".git:");
     public bool ShowDeleteButton => Safety != SafetyLevel.DoNotDelete;
-    public bool ShowCompactButton => IsWsl;
-    public bool ShowDockerPruneButton => IsDocker && Name.Contains("WSL2 Data");
+    public bool IsDockerDisk => IsDocker && Name.Contains("WSL2 Data");
+    public bool ShowCompactButton => IsWsl || IsDockerDisk;
+    public bool ShowDockerPruneButton => IsDockerDisk;
     public bool ShowGitGcButton => IsGit;
 
     public ScanItemVm(ScanResult result, MainViewModel main)
@@ -270,16 +271,20 @@ public partial class ScanItemVm : ObservableObject
     [RelayCommand]
     private async Task CompactWslAsync()
     {
-        if (!IsWsl || IsBusy) return;
+        if (!ShowCompactButton || IsBusy) return;
+
+        // Docker Desktop restarts its VM as soon as WSL stops, which locks the disk mid-compact.
+        if (IsDockerDisk && System.Diagnostics.Process.GetProcessesByName("Docker Desktop").Length > 0)
+        {
+            ResultText = "Quit Docker Desktop first (tray icon → Quit Docker Desktop), then Compact again.";
+            return;
+        }
+
         IsBusy = true;
         BusyText = "Shutting down WSL...";
 
         try
         {
-            var distroName = Name.Replace("WSL: ", "");
-            BusyText = "Setting sparse mode...";
-            await RunProcessAsync("wsl.exe", $"--manage {distroName} --set-sparse true");
-            BusyText = "Shutting down WSL...";
             await RunProcessAsync("wsl.exe", "--shutdown");
             BusyText = "Compacting VHDX (may take minutes)...";
 
@@ -312,20 +317,51 @@ public partial class ScanItemVm : ObservableObject
     private async Task DockerPruneAsync()
     {
         if (IsBusy) return;
+
+        var answer = MessageBox.Show(
+            "Remove unused Docker data?\n\n" +
+            "• All build cache\n" +
+            "• Images not used by any container (public images re-download; locally built ones need a rebuild)\n" +
+            "• Unnamed volumes not attached to any container\n\n" +
+            "Named volumes (databases, app data) are kept. Containers are not touched.\n\n" +
+            "Afterwards, quit Docker Desktop and click Compact to give the space back to Windows.",
+            "Prune Docker", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes) return;
+
         IsBusy = true;
-        BusyText = "Running Docker prune...";
         try
         {
-            await RunProcessAsync("docker", "system prune -a -f --volumes");
-            ResultText = "Prune complete. Re-scan to see updated size.";
+            BusyText = "Checking Docker is running...";
+            await RunProcessAsync("docker", "info --format {{.ServerVersion}}");
+            BusyText = "Removing build cache...";
+            await RunProcessAsync("docker", "builder prune -a -f");
+            BusyText = "Removing unused images...";
+            await RunProcessAsync("docker", "image prune -a -f");
+            BusyText = "Removing unnamed volumes...";
+            await RemoveAnonymousVolumesAsync();
+            ResultText = "Pruned. Quit Docker Desktop, then click Compact to shrink the disk.";
             _main.RefreshDriveInfo();
         }
         catch (Exception ex)
         {
-            ResultText = $"Failed: {ex.Message}. Is Docker running?";
+            ResultText = $"Failed: {ex.Message}";
             LogService.LogError("Docker prune", ex);
         }
         finally { IsBusy = false; BusyText = ""; }
+    }
+
+    // Removes only unnamed (64-hex) volumes no container uses. Done explicitly rather than with
+    // `docker volume prune`, which on Docker versions before 23 also deletes named volumes.
+    private static async Task RemoveAnonymousVolumesAsync()
+    {
+        var output = await RunProcessAsync("docker", "volume ls -q --filter dangling=true");
+        var anonymous = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(name => name.Length == 64 && name.All(Uri.IsHexDigit))
+            .ToList();
+        if (anonymous.Count > 0)
+        {
+            await RunProcessAsync("docker", "volume rm " + string.Join(' ', anonymous));
+        }
     }
 
     [RelayCommand]
@@ -381,10 +417,18 @@ public partial class ScanItemVm : ObservableObject
         };
         using var proc = System.Diagnostics.Process.Start(psi)
             ?? throw new Exception($"Failed to start {fileName}");
-        var output = await proc.StandardOutput.ReadToEndAsync();
-        var error = await proc.StandardError.ReadToEndAsync();
+        var outputTask = proc.StandardOutput.ReadToEndAsync();
+        var errorTask = proc.StandardError.ReadToEndAsync();
         await proc.WaitForExitAsync();
+        var output = await outputTask;
+        var error = await errorTask;
         LogService.Log($"[{fileName} {arguments}] exit={proc.ExitCode}");
-        return output + error;
+        if (proc.ExitCode != 0)
+        {
+            // A failed step must never be reported as success.
+            var detail = string.IsNullOrWhiteSpace(error) ? output : error;
+            throw new InvalidOperationException($"{System.IO.Path.GetFileName(fileName)} failed (exit {proc.ExitCode}): {detail.Trim()}");
+        }
+        return output;
     }
 }
